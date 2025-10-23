@@ -291,7 +291,7 @@ class P2PClient:
 
 def parse_args():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--server", default="ws://35.235.249.16:80", help="WS signaling URL")
+    ap.add_argument("--server", default="ws://35.235.249.16:443", help="WS signaling URL")
     ap.add_argument("--id", required=True, help="this peer id")
     ap.add_argument("--peer", required=True, help="remote peer id")
     ap.add_argument("--no-camera", action="store_true", help="disable camera")
