@@ -12,11 +12,15 @@ Gst.init(None)
 
 class P2PClient:
     def __init__(self, ws_url, self_id, peer_id, use_camera=True, use_mic=True,
-                 stun="stun://stun.l.google.com:19302"):
+                 stun="stun://stun.l.google.com:19302",
+                 turn_url=None, turn_user=None, turn_pass=None):
         self.ws_url = ws_url
         self.self_id = self_id
         self.peer_id = peer_id
         self.stun = stun
+        self.turn_url = turn_url
+        self.turn_user = turn_user
+        self.turn_pass = turn_pass
 
         self.use_camera = use_camera
         self.use_mic = use_mic
@@ -44,8 +48,11 @@ class P2PClient:
         video_src = "autovideosrc" if self.use_camera else "videotestsrc is-live=true pattern=ball"
         audio_src = "autoaudiosrc" if self.use_mic else "audiotestsrc is-live=true"
 
+        # TURN configuration
+        ice_servers = f"stun-server={self.stun}"
+        
         desc = f"""
-            webrtcbin name=webrtc stun-server={self.stun} bundle-policy=max-bundle
+            webrtcbin name=webrtc {ice_servers} bundle-policy=max-bundle
             {video_src} !
               videoconvert ! queue !
               vp8enc deadline=1 ! rtpvp8pay pt=96 ! queue ! webrtc.
@@ -56,11 +63,19 @@ class P2PClient:
         self.pipeline = Gst.parse_launch(desc)
         self.webrtc = self.pipeline.get_by_name("webrtc")
 
+        # TURN server ekle (GstWebRTCICE üzerinden)
+        if self.turn_url and self.turn_user and self.turn_pass:
+            # TURN server ekleme
+            self.webrtc.emit("add-turn-server", self.turn_url)
+            print(f"[TURN] Added TURN server: {self.turn_url}")
+            
         # webrtcbin signals 
         self.webrtc.connect("on-negotiation-needed", self.on_negotiation_needed)
         self.webrtc.connect("on-ice-candidate", self.on_ice_candidate)
         self.webrtc.connect("pad-added", self.on_incoming_stream)
         self.webrtc.connect("on-data-channel", self.on_data_channel)
+        self.webrtc.connect("notify::ice-connection-state", self._on_ice_connection_state)
+        self.webrtc.connect("notify::ice-gathering-state", self._on_ice_gathering_state)
 
         self.pipeline.set_state(Gst.State.PLAYING)
 
@@ -175,6 +190,16 @@ class P2PClient:
     def _on_dc_message(self, channel, msg):
         print("[DATA-CHANNEL]", msg)
 
+    def _on_ice_connection_state(self, webrtc, pspec):
+        state = webrtc.get_property("ice-connection-state")
+        print(f"[ICE] Connection state: {state}")
+        if state == "failed":
+            print("[ICE] ICE failed, TURN server might be needed!")
+    
+    def _on_ice_gathering_state(self, webrtc, pspec):
+        state = webrtc.get_property("ice-gathering-state")
+        print(f"[ICE] Gathering state: {state}")
+
     # ---------- SDP/ICE yardımcıları ----------
     def _promise_reply(self, promise):
         promise.wait()
@@ -272,10 +297,16 @@ def parse_args():
     ap.add_argument("--no-camera", action="store_true", help="disable camera")
     ap.add_argument("--no-mic", action="store_true", help="disable mic")
     ap.add_argument("--stun", default="stun://stun.l.google.com:19302")
+    ap.add_argument("--turn-url", default="turn:35.235.249.16:3478?transport=udp", 
+                    help="TURN server URL")
+    ap.add_argument("--turn-user", default="webrtcuser", help="TURN username")
+    ap.add_argument("--turn-pass", default="webrtcpass", help="TURN password")
     return ap.parse_args()
 
 if __name__ == "__main__":
     args = parse_args()
     client = P2PClient(ws_url=args.server, self_id=args.id, peer_id=args.peer,
-                       use_camera=not args.no_camera, use_mic=not args.no_mic, stun=args.stun)
+                       use_camera=not args.no_camera, use_mic=not args.no_mic, 
+                       stun=args.stun, turn_url=args.turn_url, 
+                       turn_user=args.turn_user, turn_pass=args.turn_pass)
     asyncio.run(client.run())
