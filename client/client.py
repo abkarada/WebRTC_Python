@@ -75,6 +75,8 @@ class P2PClient:
             if msg.src == self.pipeline:
                 old, new, pending = msg.parse_state_changed()
                 print(f"[GST] Pipeline state: {old.value_nick} -> {new.value_nick}", flush=True)
+                old, new, pending = msg.parse_state_changed()
+                print(f"[GST] Pipeline state: {old.value_nick} -> {new.value_nick}", flush=True)
 
     # ---------- webrtcbin callbacks ----------
     def on_negotiation_needed(self, webrtc):
@@ -100,6 +102,11 @@ class P2PClient:
                 "sdp": sdp_text
             }))
         else:
+            asyncio.create_task(self._ws_send({
+                "type":"sdp-offer",
+                "to": self.peer_id,
+                "sdp": sdp_text
+            }))
             asyncio.create_task(self._ws_send({
                 "type":"sdp-offer",
                 "to": self.peer_id,
@@ -213,6 +220,25 @@ class P2PClient:
 
             elif t == "error":
                 print("[SIG][ERROR]", msg)
+            msg = json.loads(raw)
+            t = msg.get("type")
+            if t == "sdp-offer" and msg.get("from") == self.peer_id:
+                # Karşı taraf bize offer gönderdi → set remote offer → create + send answer
+                print("[SIG] Offer received from", self.peer_id)
+                self._set_remote_description(msg["sdp"], "offer")
+                # Answer üret
+                promise = Gst.Promise.new_with_change_func(self._on_answer_created, None, None)
+                self.webrtc.emit("create-answer", None, promise)
+
+            elif t == "sdp-answer" and msg.get("from") == self.peer_id:
+                print("[SIG] Answer received from", self.peer_id)
+                self._set_remote_description(msg["sdp"], "answer")
+
+            elif t == "ice" and msg.get("from") == self.peer_id:
+                self._add_ice(msg["candidate"], msg["sdpmlineindex"])
+
+            elif t == "error":
+                print("[SIG][ERROR]", msg)
 
     def _on_answer_created(self, promise, _):
         reply = self._promise_reply(promise)
@@ -227,6 +253,11 @@ class P2PClient:
                 "sdp": sdp_text
             }))
         else:
+            asyncio.create_task(self._ws_send({
+                "type":"sdp-answer",
+                "to": self.peer_id,
+                "sdp": sdp_text
+            }))
             asyncio.create_task(self._ws_send({
                 "type":"sdp-answer",
                 "to": self.peer_id,
