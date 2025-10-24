@@ -47,9 +47,9 @@ async def main():
     public_ip = "0.0.0.0"
     public_port = 443  # Port 443'e ayarlandı
     print("="*50)
-    print(f"🚀 Signaling Server Starting...")
-    print(f"📡 Listening on ws://{public_ip}:{public_port}")
-    print(f"🌍 Connect from: ws://35.235.249.16:{public_port}")
+    print(f" Signaling Server Starting...")
+    print(f" Listening on ws://{public_ip}:{public_port}")
+    print(f" Connect from: ws://35.198.64.68:{public_port}")
     print("="*50)
     async with websockets.serve(handler, public_ip, public_port):
         await asyncio.Future()
