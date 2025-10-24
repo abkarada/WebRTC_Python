@@ -7,7 +7,6 @@ gi.require_version("Gst", "1.0")
 gi.require_version("GObject", "2.0")
 from gi.repository import Gst, GObject, GLib
 
-GObject.threads_init()
 Gst.init(None)
 
 class P2PClient:
@@ -44,15 +43,14 @@ class P2PClient:
         video_src = "autovideosrc" if self.use_camera else "videotestsrc is-live=true pattern=ball"
         audio_src = "autoaudiosrc" if self.use_mic else "audiotestsrc is-live=true"
 
-        ice_servers = f"stun-server={self.stun}"
-        
         desc = f"""
-            webrtcbin name=webrtc {ice_servers} bundle-policy=max-bundle
+            webrtcbin name=webrtc stun-server={self.stun} bundle-policy=max-bundle
             {video_src} !
-              videoconvert ! queue !
-              vp8enc deadline=1 ! rtpvp8pay pt=96 ! queue ! webrtc.
+              videoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay pt=96 ! 
+              application/x-rtp,media=video,encoding-name=VP8,payload=96 ! webrtc.
             {audio_src} !
-              audioconvert ! audioresample ! opusenc ! rtpopuspay pt=111 ! queue ! webrtc.
+              audioconvert ! audioresample ! queue ! opusenc ! rtpopuspay pt=111 ! 
+              application/x-rtp,media=audio,encoding-name=OPUS,payload=111 ! webrtc.
         """
 
         self.pipeline = Gst.parse_launch(desc)
