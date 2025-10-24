@@ -44,10 +44,13 @@ class P2PClient:
         audio_src = "autoaudiosrc" if self.use_mic else "audiotestsrc is-live=true"
 
         desc = f"""
-            webrtcbin name=webrtc stun-server={self.stun} bundle-policy=max-bundle
-            {video_src} ! videoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay ! queue ! webrtc.
-            {audio_src} ! audioconvert ! audioresample ! queue ! opusenc ! rtpopuspay ! queue ! webrtc.
-        """
+        webrtcbin name=webrtc bundle-policy=max-bundle stun-server={self.stun}
+        {video_src} ! videoconvert ! vp8enc deadline=1 ! rtpvp8pay pt=96 ! queue !
+        application/x-rtp,media=video,encoding-name=VP8,payload=96 ! webrtc.send_rtp_sink_0
+        {audio_src} ! audioconvert ! audioresample ! opusenc ! rtpopuspay pt=97 ! queue !
+        application/x-rtp,media=audio,encoding-name=OPUS,payload=97 ! webrtc.send_rtp_sink_1
+"""
+
 
         self.pipeline = Gst.parse_launch(desc)
         self.webrtc = self.pipeline.get_by_name("webrtc")
