@@ -45,12 +45,8 @@ class P2PClient:
 
         desc = f"""
             webrtcbin name=webrtc stun-server={self.stun} bundle-policy=max-bundle
-            {video_src} !
-              videoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay pt=96 ! 
-              application/x-rtp,media=video,encoding-name=VP8,payload=96 ! webrtc.
-            {audio_src} !
-              audioconvert ! audioresample ! queue ! opusenc ! rtpopuspay pt=111 ! 
-              application/x-rtp,media=audio,encoding-name=OPUS,payload=111 ! webrtc.
+            {video_src} ! videoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay ! queue ! webrtc.
+            {audio_src} ! audioconvert ! audioresample ! queue ! opusenc ! rtpopuspay ! queue ! webrtc.
         """
 
         self.pipeline = Gst.parse_launch(desc)
